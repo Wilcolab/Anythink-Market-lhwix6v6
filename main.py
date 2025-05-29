@@ -38,7 +38,10 @@ FILTERS = {
     "brightness": "Increase brightness",
     "contrast": "Increase contrast",
     "invert": "Invert colors",
-    "sepia": "Sepia tone effect"
+    "sepia": "Sepia tone effect",
+    "black_and_white": "Black & White effect",
+    "vintage": "Vintage effect",
+    "glitch": "Glitch effect"
 }
 
 @app.get("/", response_class=HTMLResponse)
@@ -172,6 +175,92 @@ async def api_apply_filter(
                 pixels[px, py] = (tr, tg, tb)
         
         filtered_img = rgb_img
+    elif selected_filter == "black_and_white":
+        # Convert to grayscale first
+        gray_img = img.convert('L')
+        # Apply high contrast
+        enhancer = ImageEnhance.Contrast(gray_img)
+        filtered_img = enhancer.enhance(2.0)
+        # Convert back to RGB for consistency
+        filtered_img = filtered_img.convert('RGB')
+    elif selected_filter == "vintage":
+        # Convert to RGB mode if it's not already
+        rgb_img = img.convert('RGB')
+        width, height = rgb_img.size
+        pixels = rgb_img.load()
+        
+        for py in range(height):
+            for px in range(width):
+                r, g, b = rgb_img.getpixel((px, py))
+                
+                # Apply vintage color transformation
+                tr = int(0.393 * r + 0.769 * g + 0.189 * b)
+                tg = int(0.349 * r + 0.686 * g + 0.168 * b)
+                tb = int(0.272 * r + 0.534 * g + 0.131 * b)
+                
+                # Add slight yellow tint
+                tr = min(255, int(tr * 1.1))
+                tg = min(255, int(tg * 1.1))
+                tb = min(255, int(tb * 0.9))
+                
+                # Add slight vignette effect
+                center_x, center_y = width / 2, height / 2
+                distance = ((px - center_x) ** 2 + (py - center_y) ** 2) ** 0.5
+                max_distance = ((width/2) ** 2 + (height/2) ** 2) ** 0.5
+                vignette = 1 - (distance / max_distance) * 0.3
+                
+                tr = int(tr * vignette)
+                tg = int(tg * vignette)
+                tb = int(tb * vignette)
+                
+                pixels[px, py] = (tr, tg, tb)
+        
+        filtered_img = rgb_img
+    elif selected_filter == "glitch":
+        # Convert to RGB mode if it's not already
+        rgb_img = img.convert('RGB')
+        width, height = rgb_img.size
+        
+        # Create a copy of the image for glitch effect
+        filtered_img = rgb_img.copy()
+        pixels = filtered_img.load()
+        
+        # Apply random color channel shifts
+        import random
+        shift_range = 10  # Maximum pixel shift
+        
+        for y in range(height):
+            # Randomly shift red channel
+            if random.random() < 0.1:  # 10% chance of shift per line
+                shift = random.randint(-shift_range, shift_range)
+                for x in range(width):
+                    if 0 <= x + shift < width:
+                        r, g, b = rgb_img.getpixel((x + shift, y))
+                        pixels[x, y] = (r, pixels[x, y][1], pixels[x, y][2])
+            
+            # Randomly shift blue channel
+            if random.random() < 0.1:  # 10% chance of shift per line
+                shift = random.randint(-shift_range, shift_range)
+                for x in range(width):
+                    if 0 <= x + shift < width:
+                        r, g, b = rgb_img.getpixel((x + shift, y))
+                        pixels[x, y] = (pixels[x, y][0], pixels[x, y][1], b)
+        
+        # Add some random noise
+        for _ in range(width * height // 100):  # Add noise to 1% of pixels
+            x = random.randint(0, width-1)
+            y = random.randint(0, height-1)
+            r, g, b = pixels[x, y]
+            # Randomly invert some color channels
+            if random.random() < 0.5:
+                r = 255 - r
+            if random.random() < 0.5:
+                g = 255 - g
+            if random.random() < 0.5:
+                b = 255 - b
+            pixels[x, y] = (r, g, b)
+        
+        filtered_img = filtered_img
     else:
         # No filter or unknown filter
         filtered_img = img
